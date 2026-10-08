@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+#ddev-generated
+# Tests, static analysis and code style of the project, configured in .quality/ of the project and run
+# from inside the ddev web container ("ddev qa") or a pipeline step (".ddev/bitbucket/ddev.sh qa")
+# Usage: .ddev/quality/qa unit|functional|acceptance|analyse|baseline|rector|fractor|cs|fix [options of the tool]
+
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+usage() {
+    echo "Usage: qa unit|functional|acceptance|analyse|baseline|rector|fractor|cs|fix [options of the tool]" >&2
+    exit 1
+}
+
+# starts from the project's own lock and only updates what .quality/composer.json requires and the lock
+# does not have yet, so the suites run on the deployed versions (and e.g. testing-framework on the one of
+# the project) - QA packages that do not fit them fail the update on purpose
+install() {
+    # docker creates a new volume as root, the ddev web container runs as the user of the host
+    for dir in .quality/vendor .quality/public; do
+        [ -w "$dir" ] || sudo chown "$(id -u):$(id -g)" "$dir"
+    done
+    if [ .quality/vendor/autoload.php -nt composer.lock ] && [ .quality/vendor/autoload.php -nt .quality/composer.json ]; then
+        return
+    fi
+    cp composer.lock .quality/composer.lock
+    local packages
+    # never empty, the root package of the project is no package of its lock
+    packages=$(php -r '$c = json_decode(file_get_contents(".quality/composer.json"), true);
+        $lock = json_decode(file_get_contents("composer.lock"), true);
+        $locked = array_column(array_merge($lock["packages"], $lock["packages-dev"] ?? []), "name");
+        echo implode(" ", array_diff(array_keys($c["require"] + $c["require-dev"]), $locked));')
+    # shellcheck disable=SC2086
+    composer update --working-dir=.quality --no-interaction $packages || { rm -f .quality/vendor/autoload.php; exit 1; }
+    touch .quality/vendor/autoload.php
+}
+
+# the browser runs in a selenium container next to this one ("selenium"), and reaches the instance
+# codeception sets up through the php server started here ("web")
+acceptance() {
+    # the test instance links the built frontend like public/ (BUILD_LINKS of ddev-typo3base, see
+    # codeception.yml), which a fresh clone or a pipeline step does not have yet
+    local links link
+    eval "links=(${BUILD_LINKS:-})"
+    for link in "${links[@]}"; do
+        [ -e "$link" ] || { echo "$link is missing, run \"ddev build fe\" first" >&2; exit 1; }
+    done
+
+    local ready=0
+    for _ in $(seq 60); do
+        curl -fs http://selenium:4444/status | grep -q '"ready": *true' && { ready=1; break; }
+        sleep 1
+    done
+    [ $ready = 1 ] || { echo "selenium did not get ready" >&2; exit 1; }
+
+    local instance=$PWD/.quality/public/typo3temp/var/tests/acceptance
+    mkdir -p "$instance"
+    TYPO3_CONTEXT=Testing TYPO3_PATH_ROOT=$instance TYPO3_PATH_APP=$instance \
+        php -S 0.0.0.0:8000 -t "$instance" .ddev/quality/codeception/router.php > "$reports/acceptance-server.log" 2>&1 &
+    trap 'kill $!' EXIT
+    .quality/vendor/bin/codecept run -c .quality/codeception --xml acceptance-tests.xml "$@"
+}
+
+[ $# -gt 0 ] || usage
+target=$1
+shift
+reports=.quality/test-reports
+mkdir -p "$reports"
+bin=.quality/vendor/bin
+csfixer=("$bin/php-cs-fixer" fix --config=.quality/php-cs-fixer/config.php)
+
+case "$target" in
+    unit)
+        install
+        exec "$bin/phpunit" -c .quality/phpunit/UnitTests.xml --log-junit "$reports/unit-tests.xml" "$@"
+        ;;
+    functional)
+        install
+        exec "$bin/phpunit" -c .quality/phpunit/FunctionalTests.xml --log-junit "$reports/functional-tests.xml" "$@"
+        ;;
+    acceptance)
+        install
+        acceptance "$@"
+        ;;
+    # from .quality: phpstan also loads the vendor/autoload.php of the working directory
+    analyse)
+        install
+        cd .quality
+        exec vendor/bin/phpstan analyse -c phpstan/phpstan.neon --memory-limit=1G "$@"
+        ;;
+    baseline)
+        install
+        cd .quality
+        exec vendor/bin/phpstan analyse -c phpstan/phpstan.neon --memory-limit=1G \
+            --generate-baseline=phpstan/baseline.neon --allow-empty-baseline "$@"
+        ;;
+    # TYPO3 migrations of the PHP code, "--dry-run" to only show them
+    rector)
+        install
+        cd .quality
+        exec vendor/bin/rector process -c rector/rector.php "$@"
+        ;;
+    # TYPO3 migrations of TypoScript, TSconfig, Fluid, FlexForms and YAML, "--dry-run" to only show them
+    fractor)
+        install
+        cd .quality
+        exec vendor/bin/fractor process -c rector/fractor.php "$@"
+        ;;
+    cs)
+        install
+        status=0
+        "${csfixer[@]}" --dry-run --diff "$@" || status=$?
+        # invisible characters (zero width spaces, BOMs, ...) - tabs and soft hyphens are fine
+        if LC_ALL=C.UTF-8 grep -rnIP '(?![\t\x{AD}])\p{C}' ext config; then
+            echo "Invisible characters found" >&2
+            status=1
+        fi
+        exit $status
+        ;;
+    fix)
+        install
+        exec "${csfixer[@]}" "$@"
+        ;;
+    *)
+        usage
+        ;;
+esac

@@ -1,0 +1,16 @@
+name: quality
+
+project_files:
+  - commands/host/qa
+  - docker-compose.quality.yaml
+  - quality/.gitignore
+  - quality/qa
+  - quality/codeception/AcceptanceTester.php
+  - quality/codeception/Environment.php
+  - quality/codeception/router.php
+
+# bitbucket/ddev.sh runs the qa command in pipeline steps (host commands since v1.4.0)
+dependencies:
+  - cyberhouse/ddev-typo3base
+
+ddev_version_constraint: '>= v1.25.4'

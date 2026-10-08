@@ -1,0 +1,20 @@
+#!/bin/sh
+#ddev-generated
+
+## Description: Tests, static analysis and code style (.quality)
+## Usage: qa unit|functional|acceptance|analyse|baseline|rector|fractor|cs|fix [options of the tool]
+## Example: "ddev qa unit", "ddev qa unit --filter TelUtil", "ddev qa acceptance", "ddev qa fix"
+
+# POSIX shell: pipeline steps run it too (.ddev/bitbucket/ddev.sh qa ... of ddev-typo3base)
+
+# the browser of the acceptance tests runs in its own container next to the web container, and only
+# for the duration of the run
+if [ "${1:-}" = acceptance ]; then
+    selenium=ddev-$DDEV_SITENAME-selenium
+    docker rm -f "$selenium" > /dev/null 2>&1
+    docker run -d --rm --name "$selenium" --network "ddev-${DDEV_SITENAME}_default" --network-alias selenium \
+        selenium/standalone-chromium:4.35.0 > /dev/null || exit 1
+    trap 'docker rm -f "$selenium" > /dev/null' EXIT
+fi
+
+ddev exec .ddev/quality/qa "$@"

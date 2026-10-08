@@ -1,0 +1,15 @@
+#ddev-generated
+
+# QA (ddev qa): its vendor and public live in docker volumes, so the host and the IDE only see the
+# project's own vendor, and the test instances in RAM
+
+services:
+  web:
+    volumes:
+      - quality-vendor:/var/www/html/.quality/vendor
+      - quality-public:/var/www/html/.quality/public
+    tmpfs:
+      - /var/www/html/.quality/public/typo3temp:rw,exec,mode=1777,size=1g
+volumes:
+  quality-vendor:
+  quality-public:
