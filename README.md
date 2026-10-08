@@ -42,8 +42,9 @@ The acceptance tests run on one TYPO3 instance per run on sqlite, set up by the 
 - every extension the project installs, the same set production runs
 - the records of every `Acceptance/Fixtures/*.csv` of the tests
 - `Acceptance/Fixtures/sites` as site configuration, each entry of `Acceptance/Fixtures/fileadmin` in its fileadmin
-- the production configuration (`config/system/additional.php`), the frontend (`BUILD_FRONTEND`) and the paths the
-  project links into `public/` (`BUILD_LINKS`, e.g. the built frontend - `ddev build fe` first)
+- the production configuration (`config/system/additional.php`), the frontend (`BUILD_FRONTEND`) and the directories
+  the project links into `public/` (`BUILD_LINKS`, e.g. the built frontend - `ddev build fe` first). Files like
+  `config/.htaccess` are not linked: the setup of the instance writes its own and would overwrite them.
 
 Further links and fixtures are added in `codeception.yml` (`pathsToLinkInTestInstance`, `csvDatabaseFixtures`).
 

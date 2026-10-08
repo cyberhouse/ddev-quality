@@ -23,8 +23,8 @@ use TYPO3\TestingFramework\Core\Testbase;
  * - every extension the project installs, the same set production runs
  * - the records of every Acceptance/Fixtures/*.csv of the tests
  * - Acceptance/Fixtures/sites as site configuration, each entry of Acceptance/Fixtures/fileadmin in its fileadmin
- * - the production configuration (config/system/additional.php), the frontend (BUILD_FRONTEND) and the paths
- *   the project links into public/ (BUILD_LINKS of ddev-typo3base, e.g. the built frontend)
+ * - the production configuration (config/system/additional.php), the frontend (BUILD_FRONTEND) and the
+ *   directories the project links into public/ (BUILD_LINKS of ddev-typo3base, e.g. the built frontend)
  * Further links and fixtures can be added in codeception.yml.
  */
 final class Environment extends BackendEnvironment
@@ -55,8 +55,10 @@ final class Environment extends BackendEnvironment
         if ($frontend !== '') {
             $links[$this->root . '/' . $frontend] = $frontend;
         }
+        // directories only: the setup of the instance writes e.g. its own .htaccess, through a link into the
+        // file of the project
         foreach (array_filter(explode(' ', (string)getenv('BUILD_LINKS'))) as $pattern) {
-            foreach (glob($this->root . '/' . $pattern, GLOB_BRACE) ?: [] as $path) {
+            foreach (glob($this->root . '/' . $pattern, GLOB_BRACE | GLOB_ONLYDIR) ?: [] as $path) {
                 $links[$path] = basename($path);
             }
         }
