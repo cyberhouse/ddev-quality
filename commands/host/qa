@@ -2,8 +2,8 @@
 #ddev-generated
 
 ## Description: Tests, static analysis and code style (.quality)
-## Usage: qa unit|functional|acceptance|analyse|baseline|rector|fractor|cs|fix [options of the tool]
-## Example: "ddev qa unit", "ddev qa unit --filter TelUtil", "ddev qa acceptance", "ddev qa fix"
+## Usage: qa unit|functional|acceptance|analyse|baseline|rector|fractor|cs|fix|quick [options of the tool]
+## Example: "ddev qa quick" (every check but acceptance), "ddev qa unit --filter TelUtil", "ddev qa acceptance", "ddev qa fix"
 
 # POSIX shell: pipeline steps run it too (.ddev/bitbucket/ddev.sh qa ... of ddev-typo3base)
 
