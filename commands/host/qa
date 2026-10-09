@@ -17,4 +17,10 @@ if [ "${1:-}" = acceptance ]; then
     trap 'docker rm -f "$selenium" > /dev/null' EXIT
 fi
 
-ddev exec .ddev/quality/qa "$@"
+if [ -n "${BITBUCKET_BUILD_NUMBER:-}" ]; then
+    # .ddev/bitbucket/ddev.sh of ddev-typo3base passes the arguments on as they are
+    ddev exec .ddev/quality/qa "$@"
+else
+    # without --raw, ddev joins the arguments for "bash -c" and loses their quotes, e.g. of --filter 'A|B'
+    ddev exec --raw -- .ddev/quality/qa "$@"
+fi

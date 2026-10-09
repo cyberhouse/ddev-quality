@@ -73,6 +73,9 @@ ddev qa quick          # every check but acceptance (migrations with --dry-run)
 
 `migrations` and `quick` run their targets one after another, continue after a failure and list the failed ones.
 
+The options keep their quotes (`ddev qa unit --filter 'TelUtil|SiteUtility'`). codeception 5.3 rejects `--filter`
+(it is taken for a test name), its `--grep` does the same: `ddev qa acceptance --grep 'FrontendCest'`.
+
 The reports are written to `.quality/test-reports/`.
 
 ## Bitbucket pipeline
