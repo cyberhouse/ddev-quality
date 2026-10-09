@@ -2,14 +2,29 @@
 #ddev-generated
 # Tests, static analysis and code style of the project, configured in .quality/ of the project and run
 # from inside the ddev web container ("ddev qa") or a pipeline step (".ddev/bitbucket/ddev.sh qa")
-# Usage: .ddev/quality/qa unit|functional|acceptance|analyse|baseline|rector|fractor|cs|fix|quick [options of the tool]
+# Usage: .ddev/quality/qa unit|functional|acceptance|analyse|baseline|rector|fractor|migrations|cs|fix|quick [options of the tool]
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 usage() {
-    echo "Usage: qa unit|functional|acceptance|analyse|baseline|rector|fractor|cs|fix|quick [options of the tool]" >&2
+    echo "Usage: qa unit|functional|acceptance|analyse|baseline|rector|fractor|migrations|cs|fix|quick [options of the tool]" >&2
     exit 1
+}
+
+# runs the given targets with their options one after another, continues after a failure and lists the failed ones
+run() {
+    local failed=() target
+    for target in "$@"; do
+        echo "=== $target"
+        # shellcheck disable=SC2086
+        .ddev/quality/qa $target || failed+=("$target")
+    done
+    if [ ${#failed[@]} -gt 0 ]; then
+        echo "Failed: ${failed[*]}" >&2
+        exit 1
+    fi
+    echo "All passed"
 }
 
 # starts from the project's own lock and only updates what .quality/composer.json requires and the lock
@@ -121,25 +136,20 @@ case "$target" in
         install
         exec "${csfixer[@]}" "$@"
         ;;
-    # every check but the acceptance tests: continues after a failure, summary at the end
+    # rector and fractor with the same options, e.g. "--dry-run" - each only if installed (optional packages of
+    # .quality/composer.json)
+    migrations)
+        install
+        tools=()
+        for tool in rector fractor; do
+            [ ! -x "$bin/$tool" ] || tools+=("$tool $*")
+        done
+        run "${tools[@]}"
+        ;;
+    # every check but the acceptance tests
     quick)
         install
-        failed=()
-        for check in unit functional analyse cs rector fractor; do
-            args=()
-            if [ "$check" = rector ] || [ "$check" = fractor ]; then
-                # optional packages of .quality/composer.json
-                [ -x "$bin/$check" ] || continue
-                args=(--dry-run)
-            fi
-            echo "=== $check"
-            .ddev/quality/qa "$check" "${args[@]}" || failed+=("$check")
-        done
-        if [ ${#failed[@]} -gt 0 ]; then
-            echo "Failed: ${failed[*]}" >&2
-            exit 1
-        fi
-        echo "All checks passed"
+        run unit functional analyse cs "migrations --dry-run"
         ;;
     *)
         usage

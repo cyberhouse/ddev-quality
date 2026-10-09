@@ -6,7 +6,7 @@ an isolated composer root of the project.
 
 | File | Purpose |
 |---|---|
-| `commands/host/qa` | `ddev qa unit\|functional\|acceptance\|analyse\|baseline\|rector\|fractor\|cs\|fix\|quick [options of the tool]`, starts the selenium of the acceptance tests |
+| `commands/host/qa` | `ddev qa unit\|functional\|acceptance\|analyse\|baseline\|rector\|fractor\|migrations\|cs\|fix\|quick [options of the tool]`, starts the selenium of the acceptance tests |
 | `quality/qa` | the runner of `ddev qa` in the web container |
 | `quality/codeception/*` | support of the acceptance tests: actor, test instance with every installed extension, router of the PHP server |
 | `docker-compose.quality.yaml` | `.quality/vendor` and `.quality/public` in docker volumes, the test instances in a tmpfs |
@@ -49,8 +49,9 @@ The acceptance tests run on one TYPO3 instance per run on sqlite, set up by the 
 Further links and fixtures are added in `codeception.yml` (`pathsToLinkInTestInstance`, `csvDatabaseFixtures`).
 
 `rector` and `fractor` are the tools of a TYPO3 update: raise the TYPO3 version of the level sets in `rector.php` and
-`fractor.php`, run them with `--dry-run`, review and apply the changes, then `ddev qa fix`. In between, `ddev qa quick`
-runs them with `--dry-run` as a check of code using an API they migrate. They need `ssch/typo3-rector` and `a9f/typo3-fractor` in `.quality/composer.json`. typo3-rector does not
+`fractor.php`, run them with `ddev qa migrations --dry-run`, review and apply the changes (`ddev qa migrations`), then
+`ddev qa fix`. In between, the dry run is a check of code using an API they migrate. They need `ssch/typo3-rector` and
+`a9f/typo3-fractor` in `.quality/composer.json`, `migrations` skips one that is missing. typo3-rector does not
 support Symfony 8 yet: as `.quality` installs on top of the project's `composer.lock`, the project keeps
 `symfony/string` below 8 (`"conflict": {"symfony/string": ">=8.0"}` in its `composer.json`) until it does.
 
@@ -64,20 +65,24 @@ ddev qa analyse        # phpstan
 ddev qa baseline       # regenerate the phpstan baseline
 ddev qa rector         # TYPO3 migrations of the PHP code (--dry-run to only show them, ddev qa fix afterwards)
 ddev qa fractor        # TYPO3 migrations of TypoScript, TSconfig, Fluid, FlexForms and YAML (--dry-run to only show them)
+ddev qa migrations     # rector and fractor with the same options (--dry-run), each if installed
 ddev qa cs             # php-cs-fixer and invisible characters
 ddev qa fix            # php-cs-fixer, fixing
-ddev qa quick          # every check but acceptance (rector and fractor with --dry-run, if installed), continues after
-                       # a failure and lists the failed ones
+ddev qa quick          # every check but acceptance (migrations with --dry-run)
 ```
+
+`migrations` and `quick` run their targets one after another, continue after a failure and list the failed ones.
 
 The reports are written to `.quality/test-reports/`.
 
 ## Bitbucket pipeline
 
-`.ddev/bitbucket/ddev.sh` of ddev-typo3base runs `qa` like ddev, selenium included. A push runs the fast checks in one
-step (most of a step is its start: image and `.quality` installation). A deployment runs them and the acceptance tests
-in parallel to the builds, the deploy step only starts when all of them are green. The acceptance step builds the
-frontend first:
+`.ddev/bitbucket/ddev.sh` of ddev-typo3base runs `qa` like ddev, selenium included. A push runs every check as a step
+of its own, the acceptance tests can be started by hand after them (a manual step can't be part of a parallel group,
+and only starts when the steps before are green). A deployment runs `quick` and the acceptance tests
+in parallel to the builds, the deploy step only starts when all of them are green - one step for the checks, as they
+already ran on every push and most of a step is its start (image and `.quality` installation). The acceptance step
+builds the frontend first:
 
 ```yaml
 quality: &QUALITY
@@ -98,7 +103,12 @@ steps:
 
 pipelines:
   default:
-    - step: *QUICKCHECKS
+    - parallel:
+        - step: { <<: *QUALITY, name: Unit Tests, script: [ .ddev/bitbucket/ddev.sh qa unit ] }
+        - step: { <<: *QUALITY, name: Functional Tests, script: [ .ddev/bitbucket/ddev.sh qa functional ] }
+        - step: { <<: *QUALITY, name: Static Analysis, script: [ .ddev/bitbucket/ddev.sh qa analyse ] }
+        - step: { <<: *QUALITY, name: Code Style, script: [ .ddev/bitbucket/ddev.sh qa cs ] }
+        - step: { <<: *QUALITY, name: TYPO3 Migrations, script: [ .ddev/bitbucket/ddev.sh qa migrations --dry-run ] }
     - step: { <<: *ACCEPTANCE, trigger: manual }
   custom:
     deploy-prod:
