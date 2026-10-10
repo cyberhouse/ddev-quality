@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 use Codeception\Configuration;
 use Composer\InstalledVersions;
+use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\TestingFramework\Core\Acceptance\Extension\BackendEnvironment;
 use TYPO3\TestingFramework\Core\Testbase;
 
@@ -47,9 +48,15 @@ final class Environment extends BackendEnvironment
         foreach (glob($fixtures . '/fileadmin/*') ?: [] as $path) {
             $links[$path] = 'fileadmin/' . basename($path);
         }
+        // TYPO3 12 (testing-framework 8) writes the legacy typo3conf/LocalConfiguration.php and moves it to
+        // typo3conf/system on the first boot, together with typo3conf/AdditionalConfiguration.php - that
+        // move creates the folder and fails if it exists already
+        $legacy = (new Typo3Version())->getMajorVersion() < 13;
         // the project path of the instance is the instance itself
         if (is_file($this->root . '/config/system/additional.php')) {
-            $links[$this->root . '/config/system/additional.php'] = 'typo3conf/system/additional.php';
+            $links[$this->root . '/config/system/additional.php'] = $legacy
+                ? 'typo3conf/AdditionalConfiguration.php'
+                : 'typo3conf/system/additional.php';
         }
         $frontend = (string)getenv('BUILD_FRONTEND');
         if ($frontend !== '') {
@@ -68,7 +75,9 @@ final class Environment extends BackendEnvironment
             'coreExtensionsToLoad' => InstalledVersions::getInstalledPackagesByType('typo3-cms-framework'),
             'testExtensionsToLoad' => InstalledVersions::getInstalledPackagesByType('typo3-cms-extension'),
             // created before the links, the instance's settings.php is only written afterwards
-            'additionalFoldersToCreate' => array_merge(['/typo3conf/system'], $this->config['additionalFoldersToCreate']),
+            'additionalFoldersToCreate' => $legacy
+                ? $this->config['additionalFoldersToCreate']
+                : array_merge(['/typo3conf/system'], $this->config['additionalFoldersToCreate']),
             'pathsToLinkInTestInstance' => array_replace(
                 array_combine(array_map($this->fromInstance(...), array_keys($links)), $links),
                 $this->config['pathsToLinkInTestInstance']

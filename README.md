@@ -44,7 +44,9 @@ The acceptance tests run on one TYPO3 instance per run on sqlite, set up by the 
 - `Acceptance/Fixtures/sites` as site configuration, each entry of `Acceptance/Fixtures/fileadmin` in its fileadmin
 - the production configuration (`config/system/additional.php`), the frontend (`BUILD_FRONTEND`) and the directories
   the project links into `public/` (`BUILD_LINKS`, e.g. the built frontend - `ddev build fe` first). Files like
-  `config/.htaccess` are not linked: the setup of the instance writes its own and would overwrite them.
+  `config/.htaccess` are not linked: the setup of the instance writes its own and would overwrite them. On TYPO3 12
+  (testing-framework 8) `additional.php` is linked as `typo3conf/AdditionalConfiguration.php`, which the first boot
+  moves to `typo3conf/system` together with the legacy `LocalConfiguration.php`.
 
 Further links and fixtures are added in `codeception.yml` (`pathsToLinkInTestInstance`, `csvDatabaseFixtures`).
 
