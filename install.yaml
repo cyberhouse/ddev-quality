@@ -7,7 +7,18 @@ project_files:
   - quality/qa
   - quality/codeception/AcceptanceTester.php
   - quality/codeception/Environment.php
-  - quality/codeception/router.php
+  - quality/codeception/apache.conf
+  - quality/codeception/php-fpm.conf
+
+post_install_actions:
+  - |
+    #ddev-description:Remove the router of the PHP server of versions before v1.5.0, apache serves the test instance
+    if grep -q '#ddev-generated' quality/codeception/router.php 2> /dev/null; then rm quality/codeception/router.php; fi
+  - |
+    #ddev-description:Check the url of the acceptance tests, the test instance is served on https since v1.5.0
+    if grep -q 'url: *http://web:8000' ../.quality/codeception/codeception.yml 2> /dev/null; then
+      echo "Set url: https://web:8000 and the capability acceptInsecureCerts: true in .quality/codeception/codeception.yml"
+    fi
 
 # bitbucket/ddev.sh runs the qa command in pipeline steps (host commands since v1.4.0)
 dependencies:

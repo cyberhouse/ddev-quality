@@ -8,7 +8,7 @@ an isolated composer root of the project.
 |---|---|
 | `commands/host/qa` | `ddev qa unit\|functional\|acceptance\|analyse\|baseline\|rector\|fractor\|migrations\|cs\|fix\|quick [options of the tool]`, starts the selenium of the acceptance tests |
 | `quality/qa` | the runner of `ddev qa` in the web container |
-| `quality/codeception/*` | support of the acceptance tests: actor, test instance with every installed extension, router of the PHP server |
+| `quality/codeception/*` | support of the acceptance tests: actor, test instance with every installed extension, apache and php-fpm serving it |
 | `docker-compose.quality.yaml` | `.quality/vendor` and `.quality/public` in docker volumes, the test instances in a tmpfs |
 
 ## Installation / update
@@ -29,7 +29,7 @@ The add-on contains the logic, the configuration belongs to the project:
 |---|---|
 | `composer.json` | the root package of the project (by its `name`) and the QA packages, installed on top of the project's `composer.lock`, so the checks run on the deployed versions - packages of that lock (e.g. `typo3/testing-framework` as `require-dev` for the IDE) keep its version |
 | `phpunit/UnitTests.xml`, `phpunit/FunctionalTests.xml` | test suites, e.g. `ext/*/Tests/Unit` |
-| `codeception/codeception.yml` | acceptance suite: the tests of the site package, `support: ../../.ddev/quality/codeception` and the `Environment` extension |
+| `codeception/codeception.yml` | acceptance suite: the tests of the site package, `support: ../../.ddev/quality/codeception`, the `Environment` extension and the WebDriver of the selenium container (`url: https://web:8000`, `acceptInsecureCerts: true`) |
 | `phpstan/phpstan.neon`, `phpstan/baseline.neon` | static analysis |
 | `php-cs-fixer/config.php` | code style |
 | `rector/rector.php` | TYPO3 migrations of the PHP code, the TYPO3 version is raised with the TYPO3 update |
@@ -42,13 +42,19 @@ The acceptance tests run on one TYPO3 instance per run on sqlite, set up by the 
 - every extension the project installs, the same set production runs
 - the records of every `Acceptance/Fixtures/*.csv` of the tests
 - `Acceptance/Fixtures/sites` as site configuration, each entry of `Acceptance/Fixtures/fileadmin` in its fileadmin
-- the production configuration (`config/system/additional.php`), the frontend (`BUILD_FRONTEND`) and the directories
-  the project links into `public/` (`BUILD_LINKS`, e.g. the built frontend - `ddev build fe` first). Files like
-  `config/.htaccess` are not linked: the setup of the instance writes its own and would overwrite them. On TYPO3 12
-  (testing-framework 8) `additional.php` is linked as `typo3conf/AdditionalConfiguration.php`, which the first boot
-  moves to `typo3conf/system` together with the legacy `LocalConfiguration.php`.
+- the production configuration (`config/system/additional.php`), the frontend (`BUILD_FRONTEND`) and what the
+  project links into `public/` (`BUILD_LINKS`, e.g. the built frontend - `ddev build fe` first): directories are
+  linked, files like `config/.htaccess` copied after the setup, which writes its own and would overwrite them through
+  a link. On TYPO3 12 (testing-framework 8) `additional.php` is linked as `typo3conf/AdditionalConfiguration.php`,
+  which the first boot moves to `typo3conf/system` together with the legacy `LocalConfiguration.php`.
 
 Further links and fixtures are added in `codeception.yml` (`pathsToLinkInTestInstance`, `csvDatabaseFixtures`).
+
+The instance is served by the apache and php-fpm of the web image, started for the run on `https://web:8000` with a
+certificate of the run: the `.htaccess` of the project applies as on the servers (rewrites, redirects, headers), on
+https like ddev and the servers (secure cookies, redirects to https). The context of the instance is `Testing`: what differs from
+the servers (the database is sqlite, the host `web:8000`) belongs in its configuration, e.g.
+`config/system/additional_Testing.php` when `additional.php` loads the files of the context. The log of both is `.quality/test-reports/acceptance-server.log`.
 
 `rector` and `fractor` are the tools of a TYPO3 update: raise the TYPO3 version of the level sets in `rector.php` and
 `fractor.php`, run them with `ddev qa migrations --dry-run`, review and apply the changes (`ddev qa migrations`), then

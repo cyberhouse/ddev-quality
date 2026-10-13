@@ -14,6 +14,7 @@ declare(strict_types=1);
 // #ddev-generated
 
 use Codeception\Configuration;
+use Codeception\Event\SuiteEvent;
 use Composer\InstalledVersions;
 use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\TestingFramework\Core\Acceptance\Extension\BackendEnvironment;
@@ -24,12 +25,17 @@ use TYPO3\TestingFramework\Core\Testbase;
  * - every extension the project installs, the same set production runs
  * - the records of every Acceptance/Fixtures/*.csv of the tests
  * - Acceptance/Fixtures/sites as site configuration, each entry of Acceptance/Fixtures/fileadmin in its fileadmin
- * - the production configuration (config/system/additional.php), the frontend (BUILD_FRONTEND) and the
- *   directories the project links into public/ (BUILD_LINKS of ddev-typo3base, e.g. the built frontend)
+ * - the production configuration (config/system/additional.php), the frontend (BUILD_FRONTEND) and what the
+ *   project links into public/ (BUILD_LINKS of ddev-typo3base, e.g. the built frontend and the .htaccess)
  * Further links and fixtures can be added in codeception.yml.
  */
 final class Environment extends BackendEnvironment
 {
+    /**
+     * @var list<string>
+     */
+    private array $files = [];
+
     private string $root;
 
     private string $instance;
@@ -62,11 +68,15 @@ final class Environment extends BackendEnvironment
         if ($frontend !== '') {
             $links[$this->root . '/' . $frontend] = $frontend;
         }
-        // directories only: the setup of the instance writes e.g. its own .htaccess, through a link into the
-        // file of the project
+        // directories are linked, files copied after the setup (bootstrapTypo3Environment): the setup writes
+        // e.g. its own .htaccess, through a link into the file of the project
         foreach (array_filter(explode(' ', (string)getenv('BUILD_LINKS'))) as $pattern) {
-            foreach (glob($this->root . '/' . $pattern, GLOB_BRACE | GLOB_ONLYDIR) ?: [] as $path) {
-                $links[$path] = basename($path);
+            foreach (glob($this->root . '/' . $pattern, GLOB_BRACE) ?: [] as $path) {
+                if (is_dir($path)) {
+                    $links[$path] = basename($path);
+                } else {
+                    $this->files[] = $path;
+                }
             }
         }
 
@@ -85,6 +95,15 @@ final class Environment extends BackendEnvironment
             'csvDatabaseFixtures' => array_merge(glob($fixtures . '/*.csv') ?: [], $this->config['csvDatabaseFixtures']),
         ];
         parent::_initialize();
+    }
+
+    public function bootstrapTypo3Environment(SuiteEvent $suiteEvent): void
+    {
+        parent::bootstrapTypo3Environment($suiteEvent);
+        // e.g. the .htaccess of the project in place of the one of the setup, the web server applies it
+        foreach ($this->files as $path) {
+            copy($path, $this->instance . '/' . basename($path));
+        }
     }
 
     /**

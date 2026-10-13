@@ -51,7 +51,8 @@ install() {
 }
 
 # the browser runs in a selenium container next to this one ("selenium"), and reaches the instance
-# codeception sets up through the php server started here ("web")
+# codeception sets up through the apache and php-fpm of the web image started here ("web"), on https
+# and with the .htaccess of the project as on the servers
 acceptance() {
     # the test instance links the built frontend like public/ (BUILD_LINKS of ddev-typo3base, see
     # codeception.yml), which a fresh clone or a pipeline step does not have yet
@@ -68,11 +69,25 @@ acceptance() {
     done
     [ $ready = 1 ] || { echo "selenium did not get ready" >&2; exit 1; }
 
-    local instance=$PWD/.quality/public/typo3temp/var/tests/acceptance
-    mkdir -p "$instance"
-    TYPO3_CONTEXT=Testing TYPO3_PATH_ROOT=$instance TYPO3_PATH_APP=$instance \
-        php -S 0.0.0.0:8000 -t "$instance" .ddev/quality/codeception/router.php > "$reports/acceptance-server.log" 2>&1 &
-    trap 'kill $!' EXIT
+    export QA_INSTANCE=$PWD/.quality/public/typo3temp/var/tests/acceptance QA_RUN QA_LOG=$PWD/$reports/acceptance-server.log
+    export QA_USER APACHE_RUN_DIR APACHE_LOCK_DIR APACHE_LOG_DIR
+    mkdir -p "$QA_INSTANCE"
+    QA_RUN=$(mktemp -d)
+    # the workers of apache run as www-data when started as root (pipeline), they connect to the socket in it
+    chmod 755 "$QA_RUN"
+    QA_USER=$(id -un)
+    # variables of the module configurations of the image
+    APACHE_RUN_DIR=$QA_RUN APACHE_LOCK_DIR=$QA_RUN APACHE_LOG_DIR=$QA_RUN
+    : > "$QA_LOG"
+    # https for the browser only (acceptInsecureCerts in codeception.yml), valid for the run
+    openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=web -addext subjectAltName=DNS:web \
+        -addext basicConstraints=critical,CA:FALSE -keyout "$QA_RUN/web.key" -out "$QA_RUN/web.crt" 2> /dev/null
+    # the environment of the instance for php-fpm only, codeception sets the instance up from the project -
+    # php-fpm refuses root without -R (pipeline)
+    TYPO3_CONTEXT=Testing TYPO3_PATH_ROOT=$QA_INSTANCE TYPO3_PATH_APP=$QA_INSTANCE \
+        php-fpm -y .ddev/quality/codeception/php-fpm.conf -D $([ "$(id -u)" = 0 ] && echo -R)
+    apache2 -f "$PWD/.ddev/quality/codeception/apache.conf" -k start
+    trap 'apache2 -f "$PWD/.ddev/quality/codeception/apache.conf" -k stop; kill "$(cat "$QA_RUN/php-fpm.pid")"' EXIT
     .quality/vendor/bin/codecept run -c .quality/codeception --xml acceptance-tests.xml "$@"
 }
 
