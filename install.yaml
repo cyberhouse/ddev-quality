@@ -2,6 +2,7 @@ name: quality
 
 project_files:
   - commands/host/qa
+  - config.quality.yaml
   - docker-compose.quality.yaml
   - quality/.gitignore
   - quality/qa

@@ -10,6 +10,7 @@ an isolated composer root of the project.
 | `quality/qa` | the runner of `ddev qa` in the web container |
 | `quality/codeception/*` | support of the acceptance tests: actor, test instance with every installed extension, apache and php-fpm serving it |
 | `docker-compose.quality.yaml` | `.quality/vendor` and `.quality/public` in docker volumes, the test instances in a tmpfs |
+| `config.quality.yaml` | the docker volumes in `upload_dirs`, so Mutagen (macOS) doesn't sync them (after an update: `ddev mutagen reset`) |
 
 ## Installation / update
 

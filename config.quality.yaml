@@ -1,0 +1,8 @@
+#ddev-generated
+
+# Mutagen (macOS) must not sync the docker volumes of docker-compose.quality.yaml: upload_dirs are excluded from the sync,
+# the volumes replace their bind-mounts. Appended to the upload_dirs of the project, fileadmin keeps the default of type typo3
+upload_dirs:
+  - fileadmin
+  - ../.quality/vendor
+  - ../.quality/public
