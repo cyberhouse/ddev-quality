@@ -53,7 +53,9 @@ Further links and fixtures are added in `codeception.yml` (`pathsToLinkInTestIns
 
 The instance is served by the apache and php-fpm of the web image, started for the run on `https://web:8000` with a
 certificate of the run: the `.htaccess` of the project applies as on the servers (rewrites, redirects, headers), on
-https like ddev and the servers (secure cookies, redirects to https). The context of the instance is `Testing`: what differs from
+https like ddev and the servers (secure cookies, redirects to https). A redirect to `www.` (`https://www.%{HTTP_HOST}`)
+leads to `www.web:8000`, which chrome resolves to the web container like `web` (`--host-resolver-rules`, added by
+`Environment`). The context of the instance is `Testing`: what differs from
 the servers (the database is sqlite, the host `web:8000`) belongs in its configuration, e.g.
 `config/system/additional_Testing.php` when `additional.php` loads the files of the context. The log of both is `.quality/test-reports/acceptance-server.log`.
 

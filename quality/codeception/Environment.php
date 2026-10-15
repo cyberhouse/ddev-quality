@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 use Codeception\Configuration;
 use Codeception\Event\SuiteEvent;
+use Codeception\Module\WebDriver;
 use Composer\InstalledVersions;
 use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\TestingFramework\Core\Acceptance\Extension\BackendEnvironment;
@@ -103,6 +104,15 @@ final class Environment extends BackendEnvironment
         // e.g. the .htaccess of the project in place of the one of the setup, the web server applies it
         foreach ($this->files as $path) {
             copy($path, $this->instance . '/' . basename($path));
+        }
+        // the redirect to www. of the .htaccess (https://www.%{HTTP_HOST}) leads the browser to "www.web",
+        // a host the network does not know - chrome resolves it to the web container like "web"
+        $webDriver = $this->getModule('WebDriver');
+        if ($webDriver instanceof WebDriver) {
+            $webDriver->_capabilities(static function (array $capabilities): array {
+                $capabilities['goog:chromeOptions']['args'][] = '--host-resolver-rules=MAP www.web web';
+                return $capabilities;
+            });
         }
     }
 
