@@ -38,6 +38,12 @@ The add-on contains the logic, the configuration belongs to the project:
 
 `.quality/vendor/.gitkeep` and `.quality/public/.gitkeep` are the mount points of the docker volumes.
 
+The lock of `.quality` is not committed, every installation resolves the QA packages anew. So `composer.json` pins
+`phpstan/phpstan`, `rector/rector` and `friendsofphp/php-cs-fixer` to exact versions: even a patch release can report new
+errors or leave baseline entries unmatched, which fails a push or a deployment without a change of the code. They are
+raised deliberately in a commit of their own - with the maintenance update of the project, with a TYPO3 or PHP update,
+when a version can no longer be installed or on demand - followed by `ddev qa quick`.
+
 The acceptance tests run on one TYPO3 instance per run on sqlite, set up by the `Environment` extension by convention:
 
 - every extension the project installs, the same set production runs
