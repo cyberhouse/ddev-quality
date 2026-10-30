@@ -93,7 +93,9 @@ ddev qa quick          # every check but acceptance (migrations with --dry-run)
 The options keep their quotes (`ddev qa unit --filter 'TelUtil|SiteUtility'`). codeception 5.3 rejects `--filter`
 (it is taken for a test name), its `--grep` does the same: `ddev qa acceptance --grep 'FrontendCest'`.
 
-The reports are written to `.quality/test-reports/`.
+The reports are written to `.quality/test-reports/`. The JUnit reports of `unit` and `functional` are flat: the cases
+of a data provider are in the suite of their class - Bitbucket counts only the cases of suites without suites inside and
+skipped the other cases of a class with a data provider.
 
 ## Bitbucket pipeline
 

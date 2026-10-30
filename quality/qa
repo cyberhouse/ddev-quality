@@ -91,6 +91,31 @@ acceptance() {
     .quality/vendor/bin/codecept run -c .quality/codeception --xml acceptance-tests.xml "$@"
 }
 
+# phpunit with a JUnit report for Bitbucket, the exit code of phpunit - Bitbucket counts only the cases of suites without
+# suites inside, phpunit puts the cases of a data provider into a suite of their own (<class>::<method>) next to the
+# other cases of the class: those were missing, the cases of the data provider move up into the suite of the class
+phpunit() {
+    local report=$1 status=0
+    shift
+    "$bin/phpunit" --log-junit "$report" "$@" || status=$?
+    [ ! -f "$report" ] || php -r '
+        $dom = new DOMDocument();
+        $dom->preserveWhiteSpace = false;
+        if (!@$dom->load($argv[1])) {
+            exit(0);
+        }
+        foreach (iterator_to_array((new DOMXPath($dom))->query("//testsuite[contains(@name, \"::\")]")) as $suite) {
+            while ($suite->firstChild) {
+                $suite->parentNode->insertBefore($suite->firstChild, $suite);
+            }
+            $suite->parentNode->removeChild($suite);
+        }
+        $dom->formatOutput = true;
+        $dom->save($argv[1]);
+    ' "$report"
+    return $status
+}
+
 [ $# -gt 0 ] || usage
 target=$1
 shift
@@ -102,11 +127,11 @@ csfixer=("$bin/php-cs-fixer" fix --config=.quality/php-cs-fixer/config.php)
 case "$target" in
     unit)
         install
-        exec "$bin/phpunit" -c .quality/phpunit/UnitTests.xml --log-junit "$reports/unit-tests.xml" "$@"
+        phpunit "$reports/unit-tests.xml" -c .quality/phpunit/UnitTests.xml "$@"
         ;;
     functional)
         install
-        exec "$bin/phpunit" -c .quality/phpunit/FunctionalTests.xml --log-junit "$reports/functional-tests.xml" "$@"
+        phpunit "$reports/functional-tests.xml" -c .quality/phpunit/FunctionalTests.xml "$@"
         ;;
     acceptance)
         install
